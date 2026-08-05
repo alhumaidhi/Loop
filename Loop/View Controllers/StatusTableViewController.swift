@@ -888,8 +888,15 @@ final class StatusTableViewController: LoopChartsTableViewController {
 
             if let indexPath = tableView.indexPath(for: cell) {
                 self.tableView(tableView, updateSubtitleFor: cell, at: indexPath)
-                if Section(rawValue: indexPath.section)! == .charts && ChartRow(rawValue: indexPath.row)! == .iob {
-                    cell.setFooterView(content: iobFooterViewContent)
+                if Section(rawValue: indexPath.section)! == .charts {
+                    // Only the Active Insulin (.iob) chart carries the "Last Bolus" footer. Clear it
+                    // on every other chart row so a recycled cell can't drag a stale footer onto the
+                    // Glucose/Carbs rows.
+                    if ChartRow(rawValue: indexPath.row)! == .iob {
+                        cell.setFooterView(content: iobFooterViewContent)
+                    } else {
+                        clearChartFooter(cell)
+                    }
                 }
             }
         }
@@ -1013,6 +1020,7 @@ final class StatusTableViewController: LoopChartsTableViewController {
                 cell.setTitleLabelText(label: NSLocalizedString("Glucose", comment: "The title of the glucose and prediction graph"))
                 cell.setTitleTextColor(color: ChartColorPalette.primary.glucoseTint)
                 cell.doesNavigate = settingsManager.dosingEnabled || !FeatureFlags.simpleBolusCalculatorEnabled
+                clearChartFooter(cell)
             case .iob:
                 cell.setSupplementalChartGenerator(generator: { [weak self] (frame) in
                     return self?.statusCharts.doseChart(withFrame: frame)?.view
@@ -1030,6 +1038,7 @@ final class StatusTableViewController: LoopChartsTableViewController {
                 })
                 cell.setTitleLabelText(label: NSLocalizedString("Active Carbohydrates", comment: "The title of the Carbs On-Board graph"))
                 cell.setTitleTextColor(color: ChartColorPalette.primary.carbTint)
+                clearChartFooter(cell)
             }
 
             self.tableView(tableView, updateSubtitleFor: cell, at: indexPath)
@@ -1159,6 +1168,14 @@ final class StatusTableViewController: LoopChartsTableViewController {
                 .padding(.vertical)
                 .accessibilityIdentifier("text_ActiveInsulinFooter")
         }
+    }
+
+    /// Clears any footer from a (possibly recycled) chart cell. Uses the hide branch of
+    /// `setFooterView`, which keeps the hosting controller in place so the Active Insulin row
+    /// can still re-populate its "Last Bolus" footer — while preventing that footer from
+    /// leaking onto the Glucose/Carbs rows through cell reuse.
+    private func clearChartFooter(_ cell: ChartTableViewCell) {
+        cell.setFooterView(content: nil as (() -> EmptyView)?)
     }
 
     private func tableView(_ tableView: UITableView, updateSubtitleFor cell: ChartTableViewCell, at indexPath: IndexPath) {
