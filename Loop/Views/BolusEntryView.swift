@@ -47,7 +47,8 @@ struct BolusEntryView: View {
             .alert(item: self.$viewModel.activeAlert, content: self.alert(for:))
             .onReceive(self.viewModel.$recommendedBolus) { recommendation in
                 // If the recommendation changes, and the user has not edited the bolus amount, update the bolus amount
-                let amount = recommendation?.doubleValue(for: .internationalUnit()) ?? 0
+                // Sara's Pancreas: meal boluses are pre-filled at a fraction of the recommendation (see BolusEntryViewModel.mealBolusPrefillFraction)
+                let amount = viewModel.prefillAmount(forRecommendation: recommendation)
                 if !editedBolusAmount {
                     var newEnteredBolusString: String
                     if amount == 0 {

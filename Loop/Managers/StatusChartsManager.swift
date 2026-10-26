@@ -28,6 +28,8 @@ class StatusChartsManager: ChartsManager {
     init(colors: ChartColorPalette, settings: ChartSettings, traitCollection: UITraitCollection) {
         let glucose = PredictedGlucoseChart(predictedGlucoseBounds: FeatureFlags.predictedGlucoseChartClampEnabled ? .default : nil,
                                             yAxisStepSizeMGDLOverride: FeatureFlags.predictedGlucoseChartClampEnabled ? 40 : nil)
+        // Sara's Pancreas: the main screen glucose chart keeps a fixed 40–300 scale
+        glucose.usesFixedGlucoseAxis = true
         let iob = IOBChart()
         let dose = DoseChart()
         let cob = COBChart()

@@ -16,7 +16,8 @@ public enum LoopCoreConstants {
     /// The amount of time in the future a glucose value should be considered valid
     public static let futureGlucoseDataInterval = TimeInterval(minutes: 5)
 
-    public static let defaultCarbAbsorptionTimes: CarbStore.DefaultAbsorptionTimes = (fast: .minutes(30), medium: .hours(3), slow: .hours(5))
+    // Sara's Pancreas: GLP-1 slows absorption, so presets are 3h / 4.5h / 6h with 4.5h (medium) pre-selected
+    public static let defaultCarbAbsorptionTimes: CarbStore.DefaultAbsorptionTimes = (fast: .hours(3), medium: .hours(4.5), slow: .hours(6))
 
     /// How much historical glucose to include in a dosing decision
     /// Somewhat arbitrary, but typical maximum visible in bolus glucose preview

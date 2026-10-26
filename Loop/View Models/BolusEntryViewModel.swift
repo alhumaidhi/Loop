@@ -793,6 +793,23 @@ final class BolusEntryViewModel: ObservableObject {
         bolusAmountFormatter.string(from: bolusAmount) ?? String(bolusAmount)
     }
 
+    // Sara's Pancreas: fraction of the recommended MEAL bolus to pre-fill in the entry field.
+    // Applies only when a carb entry is attached (meal bolus); a plain correction bolus is pre-filled in full as in standard Loop.
+    // This only lowers the pre-filled suggestion; the recommendation shown on screen and the user's typed amount are unchanged.
+    static let mealBolusPrefillFraction: Double = 0.6
+
+    /// The amount to pre-fill in the bolus field for a given recommendation, rounded down to the pump's bolus increment.
+    func prefillAmount(forRecommendation recommendation: HKQuantity?) -> Double {
+        let recommended = recommendation?.doubleValue(for: .internationalUnit()) ?? 0
+        guard potentialCarbEntry != nil, recommended > 0 else {
+            return recommended
+        }
+        let scaled = recommended * Self.mealBolusPrefillFraction
+        let rounded = delegate?.roundBolusVolume(units: scaled) ?? scaled
+        // Never let rounding push the pre-fill above the scaled amount or above the recommendation
+        return min(rounded, recommended)
+    }
+
     var recommendedBolusString: String {
         guard let amount = recommendedBolusAmount else {
             return "–"

@@ -21,6 +21,7 @@ struct CarbEntryView: View, HorizontalSizeClassOverride {
     
     @State private var showHowAbsorptionTimeWorks = false
     @State private var showAddFavoriteFood = false
+    @State private var showEditFavoriteFoods = false
     
     private let isNewEntry: Bool
 
@@ -93,6 +94,19 @@ struct CarbEntryView: View, HorizontalSizeClassOverride {
         .sheet(isPresented: $showHowAbsorptionTimeWorks) {
             HowAbsorptionTimeWorksView()
         }
+        .sheet(isPresented: $showEditFavoriteFoods, onDismiss: reloadFavoriteFoods) {
+            FavoriteFoodsView()
+                .environment(\.dismissAction, { showEditFavoriteFoods = false })
+        }
+    }
+
+    // Sara's Pancreas: after editing favorites in the sheet, refresh the grid from storage
+    private func reloadFavoriteFoods() {
+        let stored = UserDefaults.standard.favoriteFoods
+        if viewModel.selectedFavoriteFoodIndex >= stored.count {
+            viewModel.selectedFavoriteFoodIndex = -1
+        }
+        viewModel.favoriteFoods = stored
     }
     
     private var mainCard: some View {
@@ -209,46 +223,31 @@ extension CarbEntryView {
 
 // MARK: - Favorite Foods Card
 extension CarbEntryView {
+    // Sara's Pancreas: favorite foods are shown as a grid of buttons (4 per row), each with the food's emoji and carb amount.
+    private static let favoriteFoodGridColumns = Array(repeating: GridItem(.flexible(), spacing: 8), count: 4)
+
     private var favoriteFoodsCard: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("FAVORITE FOODS", comment: "The section title for Carb entry screen where Favorite Foods can be selected")
-                .font(.footnote)
-                .foregroundColor(.secondary)
-                .padding(.horizontal, 26)
-            
+            HStack {
+                Text("FAVORITE FOODS", comment: "The section title for Carb entry screen where Favorite Foods can be selected")
+                    .font(.footnote)
+                    .foregroundColor(.secondary)
+                Spacer()
+                Button(action: { showEditFavoriteFoods = true }) {
+                    Text("Edit", comment: "Button label to open the favorite foods editor from the carb entry screen")
+                        .font(.footnote)
+                }
+            }
+            .padding(.horizontal, 26)
+
             VStack(spacing: 10) {
                 if !viewModel.favoriteFoods.isEmpty {
-                    VStack {
-                        HStack {
-                            Text("Choose Favorite:", comment: "The label for the row where you choose saved Favorite Food")
-                            
-                            let selectedFavorite = favoritedFoodTextFromIndex(viewModel.selectedFavoriteFoodIndex)
-                            Text(selectedFavorite)
-                                .minimumScaleFactor(0.8)
-                                .frame(maxWidth: .infinity, alignment: .trailing)
-                        }
-                        
-                        if expandedRow == .favoriteFoodSelection {
-                            Picker(String(""), selection: $viewModel.selectedFavoriteFoodIndex) {
-                                ForEach(-1..<viewModel.favoriteFoods.count, id: \.self) { index in
-                                    Text(favoritedFoodTextFromIndex(index))
-                                        .tag(index)
-                                }
-                            }
-                            .pickerStyle(.wheel)
+                    LazyVGrid(columns: Self.favoriteFoodGridColumns, spacing: 8) {
+                        ForEach(Array(viewModel.favoriteFoods.enumerated()), id: \.element.id) { index, food in
+                            favoriteFoodButton(index: index, food: food)
                         }
                     }
-                    .onTapGesture {
-                        withAnimation {
-                            if expandedRow == .favoriteFoodSelection {
-                                expandedRow = nil
-                            }
-                            else {
-                                expandedRow = .favoriteFoodSelection
-                            }
-                        }
-                    }
-                    
+
                     CardSectionDivider()
                 }
                 
@@ -265,14 +264,46 @@ extension CarbEntryView {
         }
     }
     
-    private func favoritedFoodTextFromIndex(_ index: Int) -> String {
-        if index == -1 {
-            return String(localized: "None", comment: "Indicates no favorite food is selected")
+    private func favoriteFoodButton(index: Int, food: StoredFavoriteFood) -> some View {
+        let isSelected = viewModel.selectedFavoriteFoodIndex == index
+        let grams = food.carbsQuantity.doubleValue(for: .gram())
+        let gramsText = NumberFormatter.localizedString(from: NSNumber(value: grams), number: .none)
+        return Button(action: {
+            withAnimation {
+                // Tapping the selected food again clears the selection (same as choosing "None" before)
+                viewModel.selectedFavoriteFoodIndex = isSelected ? -1 : index
+            }
+        }) {
+            VStack(spacing: 4) {
+                Text(food.foodType.isEmpty ? "🍽️" : food.foodType)
+                    .font(.system(size: 28))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.5)
+                Text("\(gramsText) g")
+                    .font(.subheadline.weight(.semibold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                Text(food.name)
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.6)
+            }
+            .frame(maxWidth: .infinity, minHeight: 76)
+            .padding(.vertical, 4)
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(isSelected ? Color.accentColor.opacity(0.15) : Color(.secondarySystemBackground))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(isSelected ? Color.accentColor : Color(.separator), lineWidth: isSelected ? 2 : 1)
+            )
         }
-        else {
-            let food = viewModel.favoriteFoods[index]
-            return "\(food.name) \(food.foodType)"
-        }
+        .buttonStyle(.plain)
+        .foregroundColor(.primary)
+        .accessibilityLabel(Text("\(food.name), \(gramsText) grams"))
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
     
     private func saveAsFavoriteFood() {

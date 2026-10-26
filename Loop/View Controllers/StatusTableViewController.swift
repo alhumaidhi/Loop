@@ -137,6 +137,10 @@ final class StatusTableViewController: LoopChartsTableViewController {
             tableView.addGestureRecognizer(gestureRecognizer)
         }
 
+        // Sara's Pancreas: drag the charts sideways to scroll back through history
+        tableView.addGestureRecognizer(chartPanGestureRecognizer)
+        tableView.panGestureRecognizer.require(toFail: chartPanGestureRecognizer)
+
         tableView.estimatedRowHeight = 74
 
         // Estimate an initial value
@@ -391,14 +395,13 @@ final class StatusTableViewController: LoopChartsTableViewController {
     }
 
     private func updateChartDateRange() {
-        // How far back should we show data? Use the screen size as a guide.
-        let availableWidth = (refreshContext.newSize ?? tableView.bounds.size).width - charts.fixedHorizontalMargin
+        // Sara's Pancreas: the visible history is chosen with the 3h/6h/12h/24h control (not the screen width),
+        // and the user can drag the charts to look further back (chartHistoryOffset).
+        let futureHours = chartFutureHours
+        let historyHours = Double(chartTimeRange.rawValue)
+        let totalHours = historyHours + futureHours
 
-        let totalHours = floor(Double(availableWidth / LoopConstants.minimumChartWidthPerHour))
-        let futureHours = ceil(deviceManager.doseStore.longestEffectDuration.hours)
-        let historyHours = max(LoopConstants.statusChartMinimumHistoryDisplay.hours, totalHours - futureHours)
-
-        let date = Date(timeIntervalSinceNow: -TimeInterval(hours: historyHours))
+        let date = Date(timeIntervalSinceNow: -(TimeInterval(hours: historyHours) + chartHistoryOffset))
         let chartStartDate = Calendar.current.nextDate(after: date, matching: DateComponents(minute: 0), matchingPolicy: .strict, direction: .backward) ?? date
         if charts.startDate != chartStartDate {
             refreshContext.formUnion(RefreshContext.all)
@@ -590,14 +593,8 @@ final class StatusTableViewController: LoopChartsTableViewController {
             } else {
                 self.statusCharts.setPredictedGlucoseValues([])
             }
-            if !FeatureFlags.predictedGlucoseChartClampEnabled,
-                let lastPoint = self.statusCharts.glucose.predictedGlucosePoints.last?.y
-            {
-                self.eventualGlucoseDescription = String(describing: lastPoint)
-            } else {
-                // if the predicted glucose values are clamped, the eventually glucose description should not be displayed, since it may not align with what is being charted.
-                self.eventualGlucoseDescription = nil
-            }
+            // Sara's Pancreas: the "Eventually" subtitle is intentionally never shown; the prediction line already carries this information.
+            self.eventualGlucoseDescription = nil
             if currentContext.contains(.targets) {
                 self.statusCharts.targetGlucoseSchedule = self.deviceManager.loopManager.settings.glucoseTargetRangeSchedule
                 self.statusCharts.preMealOverride = self.deviceManager.loopManager.settings.preMealOverride
@@ -696,11 +693,12 @@ final class StatusTableViewController: LoopChartsTableViewController {
 
     // MARK: - Chart Section Data
 
+    // Sara's Pancreas: chart order is Glucose, Active Carbs, Active Insulin, Insulin Delivery
     private enum ChartRow: Int, CaseIterable {
         case glucose
+        case cob
         case iob
         case dose
-        case cob
     }
 
     // MARK: Glucose
@@ -1220,7 +1218,7 @@ final class StatusTableViewController: LoopChartsTableViewController {
             // Compute the height of the HUD, defaulting to 70
             let hudHeight = ceil(hudView?.systemLayoutSizeFitting(UIView.layoutFittingCompressedSize).height ?? 74)
             var availableSize = max(tableView.bounds.width, tableView.bounds.height)
-            availableSize -= (tableView.safeAreaInsets.top + tableView.safeAreaInsets.bottom + hudHeight)
+            availableSize -= (tableView.safeAreaInsets.top + tableView.safeAreaInsets.bottom + hudHeight + Self.chartHeaderHeight)
 
             switch ChartRow(rawValue: indexPath.row)! {
             case .glucose:
@@ -1230,6 +1228,145 @@ final class StatusTableViewController: LoopChartsTableViewController {
             }
         case .hud, .status, .alertWarning:
             return UITableView.automaticDimension
+        }
+    }
+
+    override func tableView(_ tableView: UITableView, viewForHeaderInSection section: Int) -> UIView? {
+        guard Section(rawValue: section) == .charts else {
+            return nil
+        }
+        return chartHeaderView
+    }
+
+    override func tableView(_ tableView: UITableView, heightForHeaderInSection section: Int) -> CGFloat {
+        guard Section(rawValue: section) == .charts else {
+            return .leastNonzeroMagnitude
+        }
+        return Self.chartHeaderHeight
+    }
+
+    // MARK: - Sara's Pancreas: chart time range and history scrolling
+
+    private enum ChartTimeRange: Int, CaseIterable {
+        case threeHours = 3
+        case sixHours = 6
+        case twelveHours = 12
+        case twentyFourHours = 24
+
+        var title: String { "\(rawValue)h" }
+    }
+
+    private static let chartHeaderHeight: CGFloat = 40
+    private static let chartTimeRangeDefaultsKey = "SarasPancreas.chartTimeRangeHours"
+    /// How far back the user may drag (the local cache keeps about a week of data)
+    private static let maxChartHistoryOffset: TimeInterval = .hours(72)
+
+    /// Hours of prediction shown to the right of "now"
+    private var chartFutureHours: Double {
+        ceil(deviceManager.doseStore.longestEffectDuration.hours)
+    }
+
+    private var chartTimeRange: ChartTimeRange = {
+        let stored = UserDefaults.standard.integer(forKey: StatusTableViewController.chartTimeRangeDefaultsKey)
+        return ChartTimeRange(rawValue: stored) ?? .sixHours
+    }() {
+        didSet {
+            guard chartTimeRange != oldValue else { return }
+            UserDefaults.standard.set(chartTimeRange.rawValue, forKey: Self.chartTimeRangeDefaultsKey)
+            chartHistoryOffset = 0
+            refreshContext.formUnion(RefreshContext.all)
+            reloadData()
+        }
+    }
+
+    /// Seconds the charts are scrolled back from "now" (0 = live view). Snapped to whole hours.
+    private var chartHistoryOffset: TimeInterval = 0 {
+        didSet {
+            chartNowButton.isHidden = chartHistoryOffset == 0
+        }
+    }
+
+    private var chartPanStartOffset: TimeInterval = 0
+
+    private lazy var chartTimeRangeControl: UISegmentedControl = {
+        let control = UISegmentedControl(items: ChartTimeRange.allCases.map { $0.title })
+        control.selectedSegmentIndex = ChartTimeRange.allCases.firstIndex(of: chartTimeRange) ?? 1
+        control.addTarget(self, action: #selector(chartTimeRangeChanged(_:)), for: .valueChanged)
+        return control
+    }()
+
+    private lazy var chartNowButton: UIButton = {
+        var configuration = UIButton.Configuration.tinted()
+        configuration.title = NSLocalizedString("Now", comment: "Button title that scrolls the charts back to the current time")
+        configuration.buttonSize = .small
+        let button = UIButton(configuration: configuration)
+        button.addTarget(self, action: #selector(chartNowTapped), for: .touchUpInside)
+        button.isHidden = true
+        return button
+    }()
+
+    private lazy var chartHeaderView: UIView = {
+        let container = UIView()
+        container.backgroundColor = .systemBackground
+        let stack = UIStackView(arrangedSubviews: [chartTimeRangeControl, chartNowButton])
+        stack.axis = .horizontal
+        stack.spacing = 8
+        stack.alignment = .center
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        container.addSubview(stack)
+        NSLayoutConstraint.activate([
+            stack.leadingAnchor.constraint(equalTo: container.layoutMarginsGuide.leadingAnchor),
+            stack.trailingAnchor.constraint(equalTo: container.layoutMarginsGuide.trailingAnchor),
+            stack.centerYAnchor.constraint(equalTo: container.centerYAnchor),
+            chartNowButton.widthAnchor.constraint(greaterThanOrEqualToConstant: 56)
+        ])
+        chartTimeRangeControl.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        return container
+    }()
+
+    private lazy var chartPanGestureRecognizer: UIPanGestureRecognizer = {
+        let recognizer = UIPanGestureRecognizer(target: self, action: #selector(handleChartPan(_:)))
+        recognizer.delegate = chartPanDelegate
+        recognizer.maximumNumberOfTouches = 1
+        return recognizer
+    }()
+
+    private lazy var chartPanDelegate = ChartPanGestureDelegate(tableView: tableView)
+
+    @objc private func chartTimeRangeChanged(_ control: UISegmentedControl) {
+        let ranges = ChartTimeRange.allCases
+        guard ranges.indices.contains(control.selectedSegmentIndex) else { return }
+        chartTimeRange = ranges[control.selectedSegmentIndex]
+    }
+
+    @objc private func chartNowTapped() {
+        guard chartHistoryOffset != 0 else { return }
+        chartHistoryOffset = 0
+        refreshContext.formUnion(RefreshContext.all)
+        reloadData()
+    }
+
+    @objc private func handleChartPan(_ recognizer: UIPanGestureRecognizer) {
+        switch recognizer.state {
+        case .began:
+            chartPanStartOffset = chartHistoryOffset
+        case .changed, .ended:
+            let width = max(tableView.bounds.width - charts.fixedHorizontalMargin, 1)
+            let totalHours = Double(chartTimeRange.rawValue) + chartFutureHours
+            let secondsPerPoint = TimeInterval(hours: totalHours) / Double(width)
+            let dx = recognizer.translation(in: tableView).x
+            // Dragging to the right reveals older data (offset grows); dragging left returns toward now
+            var offset = chartPanStartOffset + TimeInterval(dx) * secondsPerPoint
+            offset = min(max(offset, 0), Self.maxChartHistoryOffset)
+            // Snap to whole hours so the axis labels stay on the hour
+            offset = (offset / TimeInterval(hours: 1)).rounded() * TimeInterval(hours: 1)
+            if offset != chartHistoryOffset {
+                chartHistoryOffset = offset
+                refreshContext.formUnion(RefreshContext.all)
+                reloadData()
+            }
+        default:
+            break
         }
     }
 
@@ -2266,5 +2403,36 @@ extension StatusTableViewController: ServicesViewModelDelegate {
         settingsViewController.serviceOnboardingDelegate = deviceManager.servicesManager
         settingsViewController.completionDelegate = self
         show(settingsViewController, sender: self)
+    }
+}
+
+
+// MARK: - Sara's Pancreas: pan gesture delegate for chart history scrolling
+
+/// Lets a horizontal pan on a chart cell scroll the charts back in time, without stealing the table view's vertical scrolling.
+private final class ChartPanGestureDelegate: NSObject, UIGestureRecognizerDelegate {
+    private weak var tableView: UITableView?
+
+    init(tableView: UITableView) {
+        self.tableView = tableView
+    }
+
+    func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+        guard let tableView = tableView, let pan = gestureRecognizer as? UIPanGestureRecognizer else {
+            return false
+        }
+        // Only on a chart cell
+        let point = pan.location(in: tableView)
+        guard let indexPath = tableView.indexPathForRow(at: point),
+              let cell = tableView.cellForRow(at: indexPath), cell is ChartTableViewCell else {
+            return false
+        }
+        // Only when the movement is clearly sideways
+        let velocity = pan.velocity(in: tableView)
+        return abs(velocity.x) > abs(velocity.y) * 1.5
+    }
+
+    func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool {
+        return false
     }
 }
