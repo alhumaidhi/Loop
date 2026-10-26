@@ -1368,15 +1368,11 @@ final class StatusTableViewController: LoopChartsTableViewController {
             offset = min(max(offset, 0), Self.maxChartHistoryOffset)
             // Snap to whole hours so the axis labels stay on the hour
             offset = (offset / TimeInterval(hours: 1)).rounded() * TimeInterval(hours: 1)
-            let changed = offset != chartHistoryOffset
-            chartHistoryOffset = offset
-            // Reload when the finger lifts (a full data reload per hour step would be too heavy)
-            if changed, recognizer.state != .changed {
-                refreshContext.formUnion(RefreshContext.all)
-                reloadData()
-            } else if changed {
+            if offset != chartHistoryOffset {
+                chartHistoryOffset = offset
                 chartPanNeedsReload = true
             }
+            // Reload when the finger lifts (a full data reload per hour step would be too heavy)
             if recognizer.state != .changed, chartPanNeedsReload {
                 chartPanNeedsReload = false
                 refreshContext.formUnion(RefreshContext.all)

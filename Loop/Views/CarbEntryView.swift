@@ -105,10 +105,10 @@ struct CarbEntryView: View, HorizontalSizeClassOverride {
         let stored = UserDefaults.standard.favoriteFoods
         let previousIndex = viewModel.selectedFavoriteFoodIndex
         let selectedId: String? = viewModel.favoriteFoods.indices.contains(previousIndex) ? viewModel.favoriteFoods[previousIndex].id : nil
-        // Deselect first so no observer indexes into the old list, then re-select the same food by id (if it still exists)
-        viewModel.selectedFavoriteFoodIndex = -1
+        let newIndex = selectedId.flatMap { id in stored.firstIndex { $0.id == id } } ?? -1
         viewModel.favoriteFoods = stored
-        if let selectedId = selectedId, let newIndex = stored.firstIndex(where: { $0.id == selectedId }) {
+        // Only touch the selection if the selected food moved or was deleted (changing it resets the entry fields)
+        if newIndex != previousIndex {
             viewModel.selectedFavoriteFoodIndex = newIndex
         }
     }

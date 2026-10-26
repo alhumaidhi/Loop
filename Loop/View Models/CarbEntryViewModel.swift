@@ -219,6 +219,7 @@ final class CarbEntryViewModel: ObservableObject {
     
     private func observeFavoriteFoodIndexChange() {
         $selectedFavoriteFoodIndex
+            .removeDuplicates()
             .receive(on: RunLoop.main)
             .dropFirst()
             .sink { [weak self] index in
