@@ -103,10 +103,14 @@ struct CarbEntryView: View, HorizontalSizeClassOverride {
     // Sara's Pancreas: after editing favorites in the sheet, refresh the grid from storage
     private func reloadFavoriteFoods() {
         let stored = UserDefaults.standard.favoriteFoods
-        if viewModel.selectedFavoriteFoodIndex >= stored.count {
-            viewModel.selectedFavoriteFoodIndex = -1
-        }
+        let previousIndex = viewModel.selectedFavoriteFoodIndex
+        let selectedId: String? = viewModel.favoriteFoods.indices.contains(previousIndex) ? viewModel.favoriteFoods[previousIndex].id : nil
+        // Deselect first so no observer indexes into the old list, then re-select the same food by id (if it still exists)
+        viewModel.selectedFavoriteFoodIndex = -1
         viewModel.favoriteFoods = stored
+        if let selectedId = selectedId, let newIndex = stored.firstIndex(where: { $0.id == selectedId }) {
+            viewModel.selectedFavoriteFoodIndex = newIndex
+        }
     }
     
     private var mainCard: some View {

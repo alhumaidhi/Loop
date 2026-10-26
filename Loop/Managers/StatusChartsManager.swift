@@ -26,9 +26,10 @@ class StatusChartsManager: ChartsManager {
     let cob: COBChart
 
     init(colors: ChartColorPalette, settings: ChartSettings, traitCollection: UITraitCollection) {
-        let glucose = PredictedGlucoseChart(predictedGlucoseBounds: FeatureFlags.predictedGlucoseChartClampEnabled ? .default : nil,
+        // Sara's Pancreas: the main screen glucose chart keeps a fixed 40–300 scale; predictions are clamped to 40–400
+        // (display only; the prediction used for dosing is untouched) so the drawn line never leaves the chart.
+        let glucose = PredictedGlucoseChart(predictedGlucoseBounds: .default,
                                             yAxisStepSizeMGDLOverride: FeatureFlags.predictedGlucoseChartClampEnabled ? 40 : nil)
-        // Sara's Pancreas: the main screen glucose chart keeps a fixed 40–300 scale
         glucose.usesFixedGlucoseAxis = true
         let iob = IOBChart()
         let dose = DoseChart()

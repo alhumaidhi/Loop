@@ -798,7 +798,7 @@ final class BolusEntryViewModel: ObservableObject {
     // This only lowers the pre-filled suggestion; the recommendation shown on screen and the user's typed amount are unchanged.
     static let mealBolusPrefillFraction: Double = 0.6
 
-    /// The amount to pre-fill in the bolus field for a given recommendation, rounded down to the pump's bolus increment.
+    /// The amount to pre-fill in the bolus field for a given recommendation, rounded to the pump's bolus increment and never above the scaled amount.
     func prefillAmount(forRecommendation recommendation: HKQuantity?) -> Double {
         let recommended = recommendation?.doubleValue(for: .internationalUnit()) ?? 0
         guard potentialCarbEntry != nil, recommended > 0 else {

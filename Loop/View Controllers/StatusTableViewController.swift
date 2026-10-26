@@ -140,6 +140,10 @@ final class StatusTableViewController: LoopChartsTableViewController {
         // Sara's Pancreas: drag the charts sideways to scroll back through history
         tableView.addGestureRecognizer(chartPanGestureRecognizer)
         tableView.panGestureRecognizer.require(toFail: chartPanGestureRecognizer)
+        if let longPress = charts.gestureRecognizer {
+            chartPanGestureRecognizer.require(toFail: longPress)
+        }
+        tableView.sectionHeaderTopPadding = 0
 
         tableView.estimatedRowHeight = 74
 
@@ -459,6 +463,9 @@ final class StatusTableViewController: LoopChartsTableViewController {
         var cobValues: [CarbValue]?
         var carbsOnBoard: HKQuantity?
         let startDate = charts.startDate
+        // Sara's Pancreas: when scrolled back in history, only fetch up to the right edge of the chart
+        let chartQueryEnd: Date? = chartHistoryOffset > 0 ? charts.maxEndDate : nil
+        let isViewingHistory = chartHistoryOffset > 0
         let basalDeliveryState = self.basalDeliveryState
         let automaticDosingEnabled = automaticDosingStatus.automaticDosingEnabled
 
@@ -494,7 +501,7 @@ final class StatusTableViewController: LoopChartsTableViewController {
 
             if currentContext.contains(.carbs) {
                 reloadGroup.enter()
-                self.deviceManager.carbStore.getCarbsOnBoardValues(start: startDate, end: nil, effectVelocities: state.insulinCounteractionEffects) { (result) in
+                self.deviceManager.carbStore.getCarbsOnBoardValues(start: startDate, end: chartQueryEnd, effectVelocities: state.insulinCounteractionEffects) { (result) in
                     switch result {
                     case .failure(let error):
                         self.log.error("CarbStore failed to get carbs on board values: %{public}@", String(describing: error))
@@ -514,7 +521,7 @@ final class StatusTableViewController: LoopChartsTableViewController {
 
         if currentContext.contains(.glucose) {
             reloadGroup.enter()
-            deviceManager.glucoseStore.getGlucoseSamples(start: startDate, end: nil) { (result) -> Void in
+            deviceManager.glucoseStore.getGlucoseSamples(start: startDate, end: chartQueryEnd) { (result) -> Void in
                 switch result {
                 case .failure(let error):
                     self.log.error("Failure getting glucose samples: %{public}@", String(describing: error))
@@ -528,7 +535,7 @@ final class StatusTableViewController: LoopChartsTableViewController {
 
         if currentContext.contains(.insulin) {
             reloadGroup.enter()
-            deviceManager.doseStore.getInsulinOnBoardValues(start: startDate, end: nil, basalDosingEnd: nil) { (result) -> Void in
+            deviceManager.doseStore.getInsulinOnBoardValues(start: startDate, end: chartQueryEnd, basalDosingEnd: nil) { (result) -> Void in
                 switch result {
                 case .failure(let error):
                     self.log.error("DoseStore failed to get insulin on board values: %{public}@", String(describing: error))
@@ -541,7 +548,7 @@ final class StatusTableViewController: LoopChartsTableViewController {
             }
 
             reloadGroup.enter()
-            deviceManager.doseStore.getNormalizedDoseEntries(start: startDate, end: nil) { (result) -> Void in
+            deviceManager.doseStore.getNormalizedDoseEntries(start: startDate, end: chartQueryEnd) { (result) -> Void in
                 switch result {
                 case .failure(let error):
                     self.log.error("DoseStore failed to get normalized dose entries: %{public}@", String(describing: error))
@@ -588,7 +595,7 @@ final class StatusTableViewController: LoopChartsTableViewController {
             if let glucoseSamples = glucoseSamples {
                 self.statusCharts.setGlucoseValues(glucoseSamples)
             }
-            if (automaticDosingEnabled || !FeatureFlags.simpleBolusCalculatorEnabled), let predictedGlucoseValues = predictedGlucoseValues {
+            if !isViewingHistory, (automaticDosingEnabled || !FeatureFlags.simpleBolusCalculatorEnabled), let predictedGlucoseValues = predictedGlucoseValues {
                 self.statusCharts.setPredictedGlucoseValues(predictedGlucoseValues)
             } else {
                 self.statusCharts.setPredictedGlucoseValues([])
@@ -1240,7 +1247,7 @@ final class StatusTableViewController: LoopChartsTableViewController {
 
     override func tableView(_ tableView: UITableView, heightForHeaderInSection section: Int) -> CGFloat {
         guard Section(rawValue: section) == .charts else {
-            return .leastNonzeroMagnitude
+            return 0
         }
         return Self.chartHeaderHeight
     }
@@ -1287,6 +1294,7 @@ final class StatusTableViewController: LoopChartsTableViewController {
     }
 
     private var chartPanStartOffset: TimeInterval = 0
+    private var chartPanNeedsReload = false
 
     private lazy var chartTimeRangeControl: UISegmentedControl = {
         let control = UISegmentedControl(items: ChartTimeRange.allCases.map { $0.title })
@@ -1350,7 +1358,7 @@ final class StatusTableViewController: LoopChartsTableViewController {
         switch recognizer.state {
         case .began:
             chartPanStartOffset = chartHistoryOffset
-        case .changed, .ended:
+        case .changed, .ended, .cancelled:
             let width = max(tableView.bounds.width - charts.fixedHorizontalMargin, 1)
             let totalHours = Double(chartTimeRange.rawValue) + chartFutureHours
             let secondsPerPoint = TimeInterval(hours: totalHours) / Double(width)
@@ -1360,8 +1368,17 @@ final class StatusTableViewController: LoopChartsTableViewController {
             offset = min(max(offset, 0), Self.maxChartHistoryOffset)
             // Snap to whole hours so the axis labels stay on the hour
             offset = (offset / TimeInterval(hours: 1)).rounded() * TimeInterval(hours: 1)
-            if offset != chartHistoryOffset {
-                chartHistoryOffset = offset
+            let changed = offset != chartHistoryOffset
+            chartHistoryOffset = offset
+            // Reload when the finger lifts (a full data reload per hour step would be too heavy)
+            if changed, recognizer.state != .changed {
+                refreshContext.formUnion(RefreshContext.all)
+                reloadData()
+            } else if changed {
+                chartPanNeedsReload = true
+            }
+            if recognizer.state != .changed, chartPanNeedsReload {
+                chartPanNeedsReload = false
                 refreshContext.formUnion(RefreshContext.all)
                 reloadData()
             }
