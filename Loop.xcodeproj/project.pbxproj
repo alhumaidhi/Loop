@@ -258,6 +258,7 @@
 		84AA81E32A4A36FB000B658B /* SystemActionLink.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84AA81E22A4A36FB000B658B /* SystemActionLink.swift */; };
 		84AA81E52A4A3981000B658B /* DeeplinkManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84AA81E42A4A3981000B658B /* DeeplinkManager.swift */; };
 		84AA81E72A4A4DEF000B658B /* PumpView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84AA81E62A4A4DEF000B658B /* PumpView.swift */; };
+		5A8A0004C0FFEE00000000A4 /* WidgetGlucoseChartView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A8A0003C0FFEE00000000A3 /* WidgetGlucoseChartView.swift */; };
 		84AB0A833008A62400A13446 /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84AB0A823008A62400A13446 /* SceneDelegate.swift */; };
 		84D2879F2AC756C8007ED283 /* ContentMargin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84D2879E2AC756C8007ED283 /* ContentMargin.swift */; };
 		891B508524342BE1005DA578 /* CarbAndBolusFlowViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 891B508424342BE1005DA578 /* CarbAndBolusFlowViewModel.swift */; };
@@ -1066,6 +1067,7 @@
 		84AA81E22A4A36FB000B658B /* SystemActionLink.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemActionLink.swift; sourceTree = "<group>"; };
 		84AA81E42A4A3981000B658B /* DeeplinkManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeeplinkManager.swift; sourceTree = "<group>"; };
 		84AA81E62A4A4DEF000B658B /* PumpView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PumpView.swift; sourceTree = "<group>"; };
+		5A8A0003C0FFEE00000000A3 /* WidgetGlucoseChartView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetGlucoseChartView.swift; sourceTree = "<group>"; };
 		84AB0A823008A62400A13446 /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneDelegate.swift; sourceTree = "<group>"; };
 		84D2879E2AC756C8007ED283 /* ContentMargin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentMargin.swift; sourceTree = "<group>"; };
 		891B508424342BE1005DA578 /* CarbAndBolusFlowViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CarbAndBolusFlowViewModel.swift; sourceTree = "<group>"; };
@@ -2241,6 +2243,7 @@
 				14B1737128AEDBF6006CCD7C /* LoopCircleView.swift */,
 				84AA81E22A4A36FB000B658B /* SystemActionLink.swift */,
 				84AA81E62A4A4DEF000B658B /* PumpView.swift */,
+				5A8A0003C0FFEE00000000A3 /* WidgetGlucoseChartView.swift */,
 			);
 			path = Components;
 			sourceTree = "<group>";
@@ -3365,6 +3368,7 @@
 				3ED319A12EB65B4100820BCF /* Bootstrap.swift in Sources */,
 				14B1737E28AEDC6C006CCD7C /* FeatureFlags.swift in Sources */,
 				84AA81E72A4A4DEF000B658B /* PumpView.swift in Sources */,
+				5A8A0004C0FFEE00000000A4 /* WidgetGlucoseChartView.swift in Sources */,
 				14B1737F28AEDC6C006CCD7C /* PluginManager.swift in Sources */,
 				3ED3198A2EB659E600820BCF /* GlucoseLiveActivityConfiguration.swift in Sources */,
 				3ED3198B2EB659E600820BCF /* ChartView.swift in Sources */,

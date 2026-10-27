@@ -310,6 +310,7 @@ struct StatusExtensionContext: RawRepresentable {
     var cgmStatusHighlightContext: DeviceStatusHighlightContext?
     var cgmLifecycleProgressContext: DeviceLifecycleProgressContext?
     var carbsOnBoard: Double?
+    var activeInsulin: Double? // Sara's Pancreas: IOB in units, for the home-screen widget
     
     init() { }
     
@@ -335,6 +336,7 @@ struct StatusExtensionContext: RawRepresentable {
         batteryPercentage = rawValue["batteryPercentage"] as? Double
         reservoirCapacity = rawValue["reservoirCapacity"] as? Double
         carbsOnBoard = rawValue["carbsOnBoard"] as? Double
+        activeInsulin = rawValue["activeInsulin"] as? Double
 
         if let rawValue = rawValue["glucoseDisplay"] as? GlucoseDisplayableContext.RawValue {
             glucoseDisplay = GlucoseDisplayableContext(rawValue: rawValue)
@@ -383,6 +385,7 @@ struct StatusExtensionContext: RawRepresentable {
         raw["cgmStatusHighlightContext"] = cgmStatusHighlightContext?.rawValue
         raw["cgmLifecycleProgressContext"] = cgmLifecycleProgressContext?.rawValue
         raw["carbsOnBoard"] = carbsOnBoard
+        raw["activeInsulin"] = activeInsulin
         
         return raw
     }

@@ -33,6 +33,12 @@ struct StatusWidgetTimelimeEntry: TimelineEntry {
     let preMealPresetAllowed: Bool
     let preMealPresetActive: Bool
     let customPresetActive: Bool
+
+    // Sara's Pancreas: data for the chart widget
+    let glucoseHistory: [GlucoseValue]
+    let predictedGlucose: [GlucoseContext]
+    let activeInsulin: Double?
+    let carbsOnBoard: Double?
     
     // Whether context data is old
     var contextIsStale: Bool {

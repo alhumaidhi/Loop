@@ -166,6 +166,7 @@ final class ExtensionDataManager {
             context.cgmLifecycleProgressContext = DeviceLifecycleProgressContext(from: dataManager.cgmLifecycleProgress)
 
             context.carbsOnBoard = state.carbsOnBoard?.quantity.doubleValue(for: .gram())
+            context.activeInsulin = state.insulinOnBoard?.value
             
             completionHandler(context)
         }

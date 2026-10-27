@@ -21,6 +21,9 @@ class StatusWidgetTimelineProvider: TimelineProvider {
 
     static let stalenessAge = TimeInterval(minutes: 6)
 
+    /// Sara's Pancreas: how much glucose history the medium widget charts
+    static let chartHistoryInterval: TimeInterval = .hours(3)
+
     lazy var cacheStore = PersistenceController.controllerInAppGroupDirectory()
 
     lazy var localCacheDuration = Bundle.main.localCacheDuration
@@ -37,7 +40,7 @@ class StatusWidgetTimelineProvider: TimelineProvider {
     func placeholder(in context: Context) -> StatusWidgetTimelimeEntry {
         log.default("%{public}@: context=%{public}@", #function, String(describing: context))
 
-        return StatusWidgetTimelimeEntry(date: Date(), contextUpdatedAt: Date(), lastLoopCompleted: nil, closeLoop: true, currentGlucose: nil, glucoseFetchedAt: Date(), delta: nil, unit: .milligramsPerDeciliter, sensor: nil, pumpHighlight: nil, netBasal: nil, eventualGlucose: nil, preMealPresetAllowed: true, preMealPresetActive: false, customPresetActive: false)
+        return StatusWidgetTimelimeEntry(date: Date(), contextUpdatedAt: Date(), lastLoopCompleted: nil, closeLoop: true, currentGlucose: nil, glucoseFetchedAt: Date(), delta: nil, unit: .milligramsPerDeciliter, sensor: nil, pumpHighlight: nil, netBasal: nil, eventualGlucose: nil, preMealPresetAllowed: true, preMealPresetActive: false, customPresetActive: false, glucoseHistory: [], predictedGlucose: [], activeInsulin: nil, carbsOnBoard: nil)
     }
 
     func getSnapshot(in context: Context, completion: @escaping (StatusWidgetTimelimeEntry) -> ()) {
@@ -93,7 +96,8 @@ class StatusWidgetTimelineProvider: TimelineProvider {
 
         var glucose: [StoredGlucoseSample] = []
 
-        let startDate = Date(timeIntervalSinceNow: -LoopCoreConstants.inputDataRecencyInterval)
+        // Sara's Pancreas: fetch 3 hours so the widget can draw a chart (the latest sample is still used for the current value)
+        let startDate = Date(timeIntervalSinceNow: -StatusWidgetTimelineProvider.chartHistoryInterval)
 
         group.enter()
         glucoseStore.getGlucoseSamples(start: startDate) { (result) in
@@ -169,7 +173,11 @@ class StatusWidgetTimelineProvider: TimelineProvider {
                 eventualGlucose: eventualGlucose,
                 preMealPresetAllowed: preMealPresetAllowed,
                 preMealPresetActive: preMealPresetActive,
-                customPresetActive: customPresetActive
+                customPresetActive: customPresetActive,
+                glucoseHistory: finalGlucose,
+                predictedGlucose: predictedGlucose ?? [],
+                activeInsulin: context.activeInsulin,
+                carbsOnBoard: context.carbsOnBoard
             )
 
             self.log.default("StatusWidgetTimelimeEntry = %{public}@", String(describing: entry))
