@@ -551,7 +551,7 @@ final class StatusTableViewController: LoopChartsTableViewController {
             }
 
             reloadGroup.enter()
-            deviceManager.doseStore.getNormalizedDoseEntries(start: startDate, end: chartQueryEnd) { (result) -> Void in
+            deviceManager.doseStore.getNormalizedDoseEntries(start: startDate, end: min(charts.maxEndDate, Date())) { (result) -> Void in
                 switch result {
                 case .failure(let error):
                     self.log.error("DoseStore failed to get normalized dose entries: %{public}@", String(describing: error))
@@ -1276,11 +1276,6 @@ final class StatusTableViewController: LoopChartsTableViewController {
     /// Minimum hours of prediction shown to the right of "now" (rounded up to the next hour, so 2–3 h)
     private static let chartPredictionDisplayHours: Double = 2
 
-    /// Hours spanned by the chart (history + prediction), used to convert drag distance to time
-    private var chartFutureHours: Double {
-        Self.chartPredictionDisplayHours + 0.5
-    }
-
     private var chartTimeRange: ChartTimeRange = {
         let stored = UserDefaults.standard.integer(forKey: StatusTableViewController.chartTimeRangeDefaultsKey)
         return ChartTimeRange(rawValue: stored) ?? .sixHours
@@ -1368,7 +1363,7 @@ final class StatusTableViewController: LoopChartsTableViewController {
             chartPanStartOffset = chartHistoryOffset
         case .changed, .ended, .cancelled:
             let width = max(tableView.bounds.width - charts.fixedHorizontalMargin, 1)
-            let totalHours = Double(chartTimeRange.rawValue) + chartFutureHours
+            let totalHours = max(charts.maxEndDate.timeIntervalSince(charts.startDate).hours, 1)
             let secondsPerPoint = TimeInterval(hours: totalHours) / Double(width)
             let dx = recognizer.translation(in: tableView).x
             // Dragging to the right reveals older data (offset grows); dragging left returns toward now
