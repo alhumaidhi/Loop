@@ -401,17 +401,20 @@ final class StatusTableViewController: LoopChartsTableViewController {
     private func updateChartDateRange() {
         // Sara's Pancreas: the visible history is chosen with the 3h/6h/12h/24h control (not the screen width),
         // and the user can drag the charts to look further back (chartHistoryOffset).
-        let futureHours = chartFutureHours
+        // The prediction shown to the right of "now" is limited to about 2–3 hours (display only;
+        // the full prediction used for dosing is unchanged).
         let historyHours = Double(chartTimeRange.rawValue)
-        let totalHours = historyHours + futureHours
+        let anchor = Date(timeIntervalSinceNow: -chartHistoryOffset)
 
-        let date = Date(timeIntervalSinceNow: -(TimeInterval(hours: historyHours) + chartHistoryOffset))
+        let date = anchor.addingTimeInterval(-TimeInterval(hours: historyHours))
         let chartStartDate = Calendar.current.nextDate(after: date, matching: DateComponents(minute: 0), matchingPolicy: .strict, direction: .backward) ?? date
+        let futureEdge = anchor.addingTimeInterval(.hours(Self.chartPredictionDisplayHours))
+        let chartEndDate = Calendar.current.nextDate(after: futureEdge, matching: DateComponents(minute: 0), matchingPolicy: .strict, direction: .forward) ?? futureEdge
         if charts.startDate != chartStartDate {
             refreshContext.formUnion(RefreshContext.all)
         }
         charts.startDate = chartStartDate
-        charts.maxEndDate = chartStartDate.addingTimeInterval(.hours(totalHours))
+        charts.maxEndDate = chartEndDate
         charts.updateEndDate(charts.maxEndDate)
     }
 
@@ -463,8 +466,8 @@ final class StatusTableViewController: LoopChartsTableViewController {
         var cobValues: [CarbValue]?
         var carbsOnBoard: HKQuantity?
         let startDate = charts.startDate
-        // Sara's Pancreas: when scrolled back in history, only fetch up to the right edge of the chart
-        let chartQueryEnd: Date? = chartHistoryOffset > 0 ? charts.maxEndDate : nil
+        // Sara's Pancreas: only fetch up to the right edge of the chart (the chart doesn't clip, so later values would draw past it)
+        let chartQueryEnd: Date? = charts.maxEndDate
         let isViewingHistory = chartHistoryOffset > 0
         let basalDeliveryState = self.basalDeliveryState
         let automaticDosingEnabled = automaticDosingStatus.automaticDosingEnabled
@@ -596,7 +599,9 @@ final class StatusTableViewController: LoopChartsTableViewController {
                 self.statusCharts.setGlucoseValues(glucoseSamples)
             }
             if !isViewingHistory, (automaticDosingEnabled || !FeatureFlags.simpleBolusCalculatorEnabled), let predictedGlucoseValues = predictedGlucoseValues {
-                self.statusCharts.setPredictedGlucoseValues(predictedGlucoseValues)
+                // Sara's Pancreas: only draw the part of the prediction that fits the chart (display only)
+                let chartEnd = self.charts.maxEndDate
+                self.statusCharts.setPredictedGlucoseValues(predictedGlucoseValues.filter { $0.startDate <= chartEnd })
             } else {
                 self.statusCharts.setPredictedGlucoseValues([])
             }
@@ -1268,9 +1273,12 @@ final class StatusTableViewController: LoopChartsTableViewController {
     /// How far back the user may drag (the local cache keeps about a week of data)
     private static let maxChartHistoryOffset: TimeInterval = .hours(72)
 
-    /// Hours of prediction shown to the right of "now"
+    /// Minimum hours of prediction shown to the right of "now" (rounded up to the next hour, so 2–3 h)
+    private static let chartPredictionDisplayHours: Double = 2
+
+    /// Hours spanned by the chart (history + prediction), used to convert drag distance to time
     private var chartFutureHours: Double {
-        ceil(deviceManager.doseStore.longestEffectDuration.hours)
+        Self.chartPredictionDisplayHours + 0.5
     }
 
     private var chartTimeRange: ChartTimeRange = {
